@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="et">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investeerimiskonto (Multi-Asset)</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Simple Asset Row Layout */
+        .asset-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+            align-items: center;
+        }
+
+        .asset-row .input-group {
+            flex: 1;
+            margin-bottom: 0;
+            min-width: 0;
+        }
+
+        .asset-row button.remove-btn {
+            background: transparent;
+            color: #ef4444;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 5px;
+            transition: color 0.2s;
+        }
+
+        .asset-row button.remove-btn:hover {
+            color: #d32f2f;
+        }
+
+        /* Toggle Switch Styling */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider-round {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider-round:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider-round {
+            background-color: var(--accent-blue);
+        }
+
+        input:checked+.slider-round:before {
+            transform: translateX(16px);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📈 Investeerimiskonto (Multi-Asset)</h1>
+            <p class="subtitle">Eraldi "Olemasolev" ja "Uus raha" strateegia</p>
+        </header>
+
+        <main>
+            <div class="grid">
+                <!-- Left Column: Inputs -->
+                <div class="input-panel">
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchTab('assets')">💰 Varad & Strateegia</button>
+                        <button class="tab-btn" onclick="switchTab('withdrawals')">💸 Väljamaksed</button>
+                    </div>
+
+                    <!-- Tab 1: Assets -->
+                    <div id="tab_assets" class="tab-content active">
+
+                        <!-- 1. Current Assets -->
+                        <section class="card">
+                            <h2>💼 Praegused Varad</h2>
+                            <p class="hint">Sisesta väärtus otse VÕI kasuta Osakud x Hind arvutust.</p>
+
+                            <div class="asset-header"
+                                style="display:flex; justify-content:space-between; margin-bottom:5px; padding-right:40px; color:#888; font-size:0.9em;">
+                                <div style="flex:1;">ISIN / Ticker</div>
+                                <div style="flex:1; margin-left:10px;">Väärtus (€)</div>
+                            </div>
+
+                            <div id="assets_container">
+                                <!-- Dynamic Rows -->
+                            </div>
+
+                            <button type="button" class="add-btn" onclick="addAsset()">+ Lisa vara</button>
+
+                            <div class="total-display" style="margin-top: 15px;">
+                                Hetkeväärtus: <span id="total_portfolio_value">€0</span>
+                            </div>
+                        </section>
+
+                        <!-- 2. Purchase Strategy -->
+                        <section class="card">
+                            <div class="section-header-action">
+                                <h2>📥 Igakuine Ostunimekiri</h2>
+                                <button type="button" class="copy-btn" onclick="copyAssetsToStrategy()">Kopeeri
+                                    varadest</button>
+                            </div>
+                            <p class="hint">Mida iga kuu juurde ostad (Summa €).</p>
+
+                            <div id="strategy_container">
+                                <!-- Dynamic Rows -->
+                            </div>
+
+                            <button type="button" class="add-btn" onclick="addStrategyItem()">+ Lisa ost</button>
+
+                            <div class="total-display" style="margin-top: 15px;">
+                                Igakuine lisamine: <span id="total_monthly_contribution">€0</span>
+                            </div>
+
+                            <div class="input-group"
+                                style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                                <label>Lõpeta sissemaksed (aasta)</label>
+                                <input type="number" id="contribution_end_year"
+                                    placeholder="nt 2040 (või jäta tühjaks)">
+                                <p class="hint" style="margin-top:5px;">Alates sellest aastast (k.a) on sissemaksed €0.
+                                    Portfell kasvab intressiga edasi.</p>
+                            </div>
+                        </section>
+
+                        <section class="card">
+                            <h2>📉 Kulud</h2>
+                            <div class="input-group">
+                                <label>Haldustasud jms (€/aasta)</label>
+                                <input type="number" id="annual_costs" value="50" step="10">
+                            </div>
+                        </section>
+
+                        <section class="card">
+                            <h2>📅 Periood</h2>
+                            <div class="input-group inline">
+                                <label for="start_year">Algus</label>
+                                <input type="number" id="start_year" value="2026" min="2025" max="2040">
+                            </div>
+                            <div class="input-group inline">
+                                <label for="end_year">Lõpp</label>
+                                <input type="number" id="end_year" value="2040" min="2026" max="2060">
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Tab 2: Withdrawals -->
+                    <div id="tab_withdrawals" class="tab-content">
+                        <section class="card">
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                                <h2>Planeeri Väljamaksed</h2>
+                                <label class="switch">
+                                    <input type="checkbox" id="enable_withdrawals" checked
+                                        onchange="toggleWithdrawals()">
+                                    <span class="slider-round"></span>
+                                </label>
+                            </div>
+
+                            <div id="withdrawal_controls">
+                                <div class="input-group">
+                                    <label>Algusaasta</label>
+                                    <input type="number" id="withdrawal_start_year" value="2035">
+                                </div>
+
+                                <div class="input-group">
+                                    <label>Määr (% portfellist/aastas)</label>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <input type="range" id="withdrawal_rate" min="0" max="15" step="0.5" value="4"
+                                            oninput="document.getElementById('wr_disp').innerText = this.value + '%'; debouncedRunSimulation()">
+                                        <span id="wr_disp" style="font-weight: bold;">4%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="withdrawal_disabled_msg" class="hidden"
+                                style="margin-top:10px; color:#666; font-style:italic; padding-left:20px;">
+                                Väljamaksed on välja lülitatud. Portfell kasvab ilma väljavõtmisteta.
+                            </div>
+                        </section>
+                    </div>
+
+                    <button id="simulate_btn" class="primary-btn" onclick="runSimulation()">
+                        🚀 Käivita simulatsioon
+                    </button>
+                </div>
+
+                <!-- Right Column: Results -->
+                <div class="results-panel">
+                    <section class="card results-card">
+                        <h2>📊 Tulemused</h2>
+
+                        <div id="loading" class="loading hidden">
+                            <div class="spinner"></div>
+                            <p>Arvutan stsenaariume...</p>
+                        </div>
+
+                        <div id="results" class="hidden">
+                            <!-- Slider Control -->
+                            <div class="control-group" style="margin-bottom: 20px;">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                    <label>Stsenaarium (Tõenäosus):</label>
+                                    <div style="text-align:right;">
+                                        <span id="percentile_disp"
+                                            style="font-weight:bold; color:var(--accent-blue);">P50 (Oodatav)</span>
+                                        <div id="metrics_disp" style="display:inline-block; margin-left:8px;">
+                                            <span id="annual_return_disp"
+                                                style="font-size:0.9em; font-weight:bold; color:#f59e0b; margin-right:5px; background:rgba(245, 158, 11, 0.1); padding:2px 6px; border-radius:4px;">
+                                                ~0% p.a
+                                            </span>
+                                            <span id="roi_disp"
+                                                style="font-size:0.9em; color:#4ade80; background:rgba(74, 222, 128, 0.1); padding:2px 6px; border-radius:4px;">
+                                                +0%
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <input type="range" id="scenario_slider" min="1" max="99" value="50" style="width:100%;"
+                                    oninput="updateAllResults()">
+                                <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#666;">
+                                    <span>P1 (Halb)</span>
+                                    <span>P99 (Hea)</span>
+                                </div>
+                            </div>
+
+                            <div class="stats-grid-2">
+                                <div class="main-stat-card">
+                                    <div class="stat-label">Lõppbilanss</div>
+                                    <div class="stat-value" id="final_balance">-</div>
+                                </div>
+                                <div class="main-stat-card">
+                                    <div class="stat-label">Sissepandud raha</div>
+                                    <div class="stat-value" id="deposit_pot">-</div>
+                                </div>
+                            </div>
+
+                            <div class="chart-container">
+                                <canvas id="projection_chart"></canvas>
+                            </div>
+
+                            <div class="balance-table-container">
+                                <h3 id="table_header">📈 Detailne vaade (P50)</h3>
+                                <div class="table-scroll">
+                                    <table id="balance_table">
+                                        <thead>
+                                            <tr>
+                                                <th>Aasta</th>
+                                                <th>Algus</th>
+                                                <th>Lisatud</th>
+                                                <th>Kulud</th>
+                                                <th>Neto Välja</th>
+                                                <th>Maks</th>
+                                                <th>Lõpp</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="balance_table_body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="error" class="error hidden"></div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let projectionChart = null;
+        let lastSimData = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Init logic with LocalStorage support
+            toggleWithdrawals(); // Init state
+            checkAndLoadState();
+
+            // Auto-save on run click
+            document.getElementById('simulate_btn').addEventListener('click', saveState);
+        });
+
+        // Debounce Logic for Auto-Run
+        let debounceTimer;
+        function debouncedRunSimulation() {
+            const btn = document.getElementById('simulate_btn');
+            // Visual feedback that change is pending
+            btn.textContent = "⏳ Ootan...";
+
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                runSimulation();
+                btn.textContent = "🚀 Käivita simulatsioon"; // Reset text (runSimulation handles disabled state)
+            }, 600); // 600ms delay
+        }
+
+        const STORAGE_KEY = 'invest_modeler_personal_v1';
+
+        function checkAndLoadState() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    loadState(data);
+                    // Just confirm saved
+                    console.log("Loaded state from localStorage");
+                } catch (e) {
+                    console.error("Failed to load state", e);
+                    initDefaults();
+                }
+            } else {
+                initDefaults();
+            }
+        }
+
+        function initDefaults() {
+            // Default initial assets if no save found
+            addAsset('TNESCFD', 705 * 16.50); // ~11632
+            addAsset('IE00BK5BQT80', 10000);
+
+            addStrategyItem('IE00BK5BQT80', 800);
+            addStrategyItem('IE00BKM4GZ66', 200);
+        }
+
+        function saveState() {
+            const assets = [];
+            document.querySelectorAll('#assets_container .asset-row').forEach(row => {
+                assets.push({
+                    isin: row.querySelector('.asset-isin').value,
+                    value: row.querySelector('.asset-value').value
+                });
+            });
+
+            const strategy = [];
+            document.querySelectorAll('#strategy_container .asset-row').forEach(row => {
+                strategy.push({
+                    isin: row.querySelector('.strat-isin').value,
+                    amount: row.querySelector('.strat-amount').value
+                });
+            });
+
+            const state = {
+                assets: assets,
+                strategy: strategy,
+                annual_costs: document.getElementById('annual_costs').value,
+                start_year: document.getElementById('start_year').value,
+                end_year: document.getElementById('end_year').value,
+                enable_withdrawals: document.getElementById('enable_withdrawals').checked,
+                withdrawal_start_year: document.getElementById('withdrawal_start_year').value,
+                withdrawal_rate: document.getElementById('withdrawal_rate').value,
+                contribution_end_year: document.getElementById('contribution_end_year').value
+            };
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+            // Show brief toast/indicator?
+            const btn = document.getElementById('simulate_btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "💾 Salvestatud & Käivitan...";
+            setTimeout(() => btn.innerHTML = originalText, 1000);
+        }
+
+        function loadState(data) {
+            // Clear current
+            document.getElementById('assets_container').innerHTML = '';
+            document.getElementById('strategy_container').innerHTML = '';
+
+            // Restore Assets
+            if (data.assets && data.assets.length) {
+                data.assets.forEach(a => addAsset(a.isin, a.value));
+            } else {
+                initDefaults();
+                return;
+            }
+
+            // Restore Strategy
+            if (data.strategy) {
+                data.strategy.forEach(s => addStrategyItem(s.isin, s.amount));
+            }
+
+            // Restore Settings
+            if (data.annual_costs) document.getElementById('annual_costs').value = data.annual_costs;
+            if (data.start_year) document.getElementById('start_year').value = data.start_year;
+            if (data.end_year) document.getElementById('end_year').value = data.end_year;
+
+            if (data.enable_withdrawals !== undefined) {
+                document.getElementById('enable_withdrawals').checked = data.enable_withdrawals;
+                toggleWithdrawals();
+            }
+
+            if (data.withdrawal_start_year) document.getElementById('withdrawal_start_year').value = data.withdrawal_start_year;
+            if (data.withdrawal_rate) {
+                document.getElementById('withdrawal_rate').value = data.withdrawal_rate;
+                document.getElementById('wr_disp').innerText = data.withdrawal_rate + '%';
+            }
+
+            if (data.contribution_end_year) document.getElementById('contribution_end_year').value = data.contribution_end_year;
+        }
+
+        function toggleWithdrawals() {
+            const enabled = document.getElementById('enable_withdrawals').checked;
+            const controls = document.getElementById('withdrawal_controls');
+            const msg = document.getElementById('withdrawal_disabled_msg');
+
+            if (enabled) {
+                controls.classList.remove('hidden');
+                msg.classList.add('hidden');
+            } else {
+                controls.classList.add('hidden');
+                msg.classList.remove('hidden');
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('tab_' + tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // --- Assets Logic ---
+        // --- Assets Logic ---
+        function addAsset(isin = '', value = 0) {
+            const container = document.getElementById('assets_container');
+            const div = document.createElement('div');
+            div.className = 'asset-row';
+
+            div.innerHTML = `
+                <div class="input-group">
+                    <input type="text" class="asset-isin" value="${isin}" placeholder="Ticker">
+                </div>
+                <div class="input-group">
+                    <input type="number" class="asset-value" value="${value}" placeholder="€" oninput="updateTotalAssetValue()">
+                </div>
+                <button class="remove-btn" onclick="this.parentElement.remove(); updateTotalAssetValue()" title="Eemalda">✕</button>
+            `;
+            container.appendChild(div);
+            updateTotalAssetValue();
+        }
+
+        // recalcRow removed (Simplification)
+
+        function updateTotalAssetValue() {
+            let total = 0;
+            document.querySelectorAll('.asset-value').forEach(imp => total += parseFloat(imp.value) || 0);
+            document.getElementById('total_portfolio_value').textContent = '€' + total.toLocaleString();
+        }
+
+        // --- Strategy Logic ---
+        function addStrategyItem(isin = '', amount = 0) {
+            const container = document.getElementById('strategy_container');
+            const div = document.createElement('div');
+            div.className = 'asset-row';
+            div.innerHTML = `
+                <div class="input-group">
+                    <input type="text" class="strat-isin" value="${isin}" placeholder="nt VWCE">
+                </div>
+                <div class="input-group">
+                    <input type="number" class="strat-amount" value="${amount}" oninput="updateTotalStrategy()">
+                </div>
+                <button onclick="this.parentElement.remove(); updateTotalStrategy()">✕</button>
+            `;
+            container.appendChild(div);
+            updateTotalStrategy();
+        }
+
+        function updateTotalStrategy() {
+            let total = 0;
+            document.querySelectorAll('.strat-amount').forEach(imp => total += parseFloat(imp.value) || 0);
+            document.getElementById('total_monthly_contribution').textContent = '€' + total.toLocaleString();
+        }
+
+        function copyAssetsToStrategy() {
+            document.querySelectorAll('.asset-isin').forEach(input => {
+                if (input.value) addStrategyItem(input.value, 0);
+            });
+        }
+
+        // --- Simulation ---
+        async function runSimulation() {
+            const btn = document.getElementById('simulate_btn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const error = document.getElementById('error');
+
+            btn.disabled = true;
+            loading.classList.remove('hidden');
+            results.classList.add('hidden');
+            error.classList.add('hidden');
+
+            const assets = [];
+            document.querySelectorAll('#assets_container .asset-row').forEach(row => {
+                assets.push({
+                    isin: row.querySelector('.asset-isin').value,
+                    value: row.querySelector('.asset-value').value
+                });
+            });
+
+            const strategy = [];
+            document.querySelectorAll('#strategy_container .asset-row').forEach(row => {
+                strategy.push({
+                    isin: row.querySelector('.strat-isin').value,
+                    amount: row.querySelector('.strat-amount').value
+                });
+            });
+
+            // Handle Withdrawals Toggle
+            const wdEnabled = document.getElementById('enable_withdrawals').checked;
+            const wdRate = wdEnabled ? document.getElementById('withdrawal_rate').value : 0;
+
+            const payload = {
+                assets: assets,
+                strategy: strategy,
+                annual_costs: document.getElementById('annual_costs').value,
+                start_year: document.getElementById('start_year').value,
+                end_year: document.getElementById('end_year').value,
+                withdrawal_rate: wdRate,
+                withdrawal_start_year: document.getElementById('withdrawal_start_year').value,
+                contribution_end_year: document.getElementById('contribution_end_year').value
+            };
+
+            try {
+                const resp = await fetch('/api/simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    lastSimData = data;
+                    renderResults();
+                    results.classList.remove('hidden');
+                } else {
+                    error.textContent = data.error;
+                    error.classList.remove('hidden');
+                }
+            } catch (e) {
+                // If 500 or JSON parse fail
+                error.textContent = "Viga serveriga suhtlemisel (Kontrolli CSV faili olemasolu!)";
+                error.classList.remove('hidden');
+                console.error(e);
+            } finally {
+                btn.disabled = false;
+                loading.classList.add('hidden');
+            }
+        }
+
+        function renderResults() {
+            updateAllResults();
+        }
+
+        function updateAllResults() {
+            if (!lastSimData) return;
+            const slider = document.getElementById('scenario_slider');
+            const val = parseInt(slider.value);
+
+            // Text update
+            const disp = document.getElementById('percentile_disp');
+            if (val === 50) disp.textContent = "P50 (Oodatav)";
+            else if (val < 20) disp.textContent = `P${val} (Pessimistlik)`;
+            else if (val > 80) disp.textContent = `P${val} (Optimistlik)`;
+            else disp.textContent = `P${val}`;
+
+            const sim = lastSimData.simulation;
+            const percentiles = sim.percentiles;
+
+            // Get data for slider
+            const series = percentiles[val.toString()] || percentiles[val];
+            const lastIdx = series.length - 1;
+
+            const finalBal = series[lastIdx];
+            const pot = sim.deposit_pot_p50[lastIdx];
+
+            // ROI Calc
+            // Annual Return Approx: (Final / Pot) ^ (1/Yr) - 1 ??
+            // Better: Weighted duration? 
+            // Let's use simple CAGR on total pot for now: (Final / Pot) ^ (1 / n_years) - 1. 
+            // Note: This is inaccurate for monthly contribs.
+
+            // XIRR-like approximation for display?
+            // Let's us (Final - Pot) / Pot as ROI. 
+            // And ROI / Years as simple annual. 
+            // Or better: (1 + ROI)^(1/years) - 1 (CAGR of the lump sum equivalent).
+            // Since Pot grows, this underestimates.
+
+            // Let's assume average capital deployment is ~0.6 of duration (front loaded start + linear contribs)
+            // Effective Duration ~ 0.6 * Years?
+            const duration = sim.years.length;
+            const years = duration;
+
+            let roi = 0;
+            let cagr = 0;
+
+            if (pot > 0) {
+                roi = ((finalBal - pot) / pot) * 100;
+                // Simple approximation for user context
+                cagr = (Math.pow(finalBal / pot, 1 / (years / 1.8)) - 1) * 100;
+                // 1.8 denominator is heuristic for mixed lump+DCA
+            }
+
+            const roiDisp = document.getElementById('roi_disp');
+            roiDisp.textContent = (roi >= 0 ? 'Kogu: +' : 'Kogu: ') + Math.round(roi) + '%';
+            roiDisp.style.color = roi >= 0 ? '#4ade80' : '#ef4444';
+            roiDisp.style.background = roi >= 0 ? 'rgba(74, 222, 128, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+
+            const annualDisp = document.getElementById('annual_return_disp');
+            annualDisp.textContent = `~${cagr.toFixed(1)}% /a`;
+
+            document.getElementById('final_balance').textContent = '€' + Math.round(series[lastIdx]).toLocaleString();
+            document.getElementById('deposit_pot').textContent = '€' + Math.round(pot).toLocaleString();
+
+            const ctx = document.getElementById('projection_chart').getContext('2d');
+            if (projectionChart) projectionChart.destroy();
+
+            // Chart shows P10, Selected, P90
+            projectionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sim.years,
+                    datasets: [
+                        { label: 'P90', data: percentiles['90'], borderColor: '#4ade80', fill: false, tension: 0.4 },
+                        { label: `P${val} (Valitud)`, data: series, borderColor: '#3b82f6', fill: false, tension: 0.4, borderWidth: 3 },
+                        { label: 'P10', data: percentiles['10'], borderColor: '#ef4444', fill: false, tension: 0.4 }
+                    ]
+                },
+                options: { responsive: true, animation: { duration: 0 } } // Disable anim for slider dragging perfs
+            });
+
+            // Detailed Table Generation (Client Side Dynamic)
+            document.getElementById('table_header').textContent = `📈 Detailne vaade (P${val})`;
+
+            const tbody = document.getElementById('balance_table_body');
+            tbody.innerHTML = '';
+
+            // Arrays for current percentile
+            const pSeries = series; // End Balances
+            const payouts = sim.payouts_percentiles[val] || sim.payouts_percentiles[val.toString()];
+            const taxes = sim.taxes_percentiles[val] || sim.taxes_percentiles[val.toString()];
+            const costs = sim.costs_percentiles[val] || sim.costs_percentiles[val.toString()];
+            const deposit = sim.deposit_pot_p50; // Approximated as constant P50
+
+            // We need monthly contribution info? Passed as 'monthly_total_contrib'
+            const monthlyContribTotal = lastSimData.monthly_total_contrib || 0;
+
+            pSeries.forEach((endBal, i) => {
+                const year = sim.years[i];
+                let startBal = 0;
+                if (i === 0) startBal = lastSimData.starting_capital;
+                else startBal = pSeries[i - 1];
+
+                // Contributions logic: Check if stopped?
+                // The backend handles logic, but we need to display it.
+                // We can infer contribution from the deposit pot change!
+                // Pot[i] - Pot[i-1] = Contribution (approx)
+                let contrib = 0;
+                if (i === 0) contrib = deposit[0] - lastSimData.starting_capital;
+                else contrib = deposit[i] - deposit[i - 1];
+
+                // Fix negative contribs if any floating point glitch
+                if (contrib < 0) contrib = 0;
+
+                const cost = costs[i];
+                const net = payouts[i];
+                const tax = taxes[i];
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${year}</strong></td>
+                    <td>€${Math.round(startBal).toLocaleString()}</td>
+                    <td class="positive">+€${Math.round(contrib).toLocaleString()}</td>
+                    <td class="negative">€${Math.round(cost).toLocaleString()}</td>
+                    <td class="${net > 0 ? 'negative' : ''}">€${Math.round(net).toLocaleString()}</td>
+                    <td class="${tax > 0 ? 'negative' : ''}">€${Math.round(tax).toLocaleString()}</td>
+                    <td><strong>€${Math.round(endBal).toLocaleString()}</strong></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+
+</html>
